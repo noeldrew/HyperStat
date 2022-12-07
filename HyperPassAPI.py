@@ -3,39 +3,35 @@ import json
 import datetime
 from datetime import datetime, date, timedelta
 
-from dotenv import load_dotenv
 from urllib3.exceptions import HTTPError
-load_dotenv()
-from os import environ
-
 
 
 class HyperPassAPI:
-
     _authorisation_token: str
-    _api_base_url: str = 'https://api.stage.hyperspace-ticketing.apptoku.com/api'
-    _client_id: str = 'U5MLz5eI57hNELrH8nKSKj61GnW12bgRgf0ycb9N'
-    # _client_secret: str = 'eCipyIdmN0tQwxoXsRqBZ0cbtKuzFMRAUSN7JR7ytzkHkHf1cDyzyeydzQdmyfTYOltM07JgqtNYlaOXfeLGfo9CL6oxSgI8LOvdCk2sides0HZgLoN1teAbZ1ZWZamK'
-    _client_secret = environ.get('HYPER_PASS_SECRET')
-    _event_id: str = 'e91cd3da-01d2-4082-8cd7-138f78dec538'
+    _api_base_url: str = 'https://api.hyperpass.aya-universe.com/api'
+    _client_id: str = 'nkrvwcUrJvFXmvTA6WeQ14RstrSMsYU8tY2BsqSo'
+    _client_secret = 'qGBwYN6JNpw5zKNEHsMAu8FtiuCDA7ONh2ugAVJ8XicouhrmJe25TjTsOXeSvyyEsUe7obJpaqNJs5uV4QrJmovQoihL5LbvZhtGMTsXh4gb3rqjcpV4SfGcmgvR4umo'
+    _event_id: str = '38f6c672-09e5-4737-9134-3e630d4ea78e'
+
+    _zero_hour: str = '2022-12-07T16:00:00.00'
 
     def __init__(self):
         return
 
     def getClientAuthorisationToken(self) -> bool:
+        print('getting client authorisation token')
         endpoint = self._api_base_url + '/o/token/'
         headers = {
             "Content-Type": "application/x-www-form-urlencoded; charset=utf-8"
         }
         data = {
-            'grant_type': 'client_credentials',
-            'client_id': self._client_id,
+            'grant_type'   : 'client_credentials',
+            'client_id'    : self._client_id,
             'client_secret': self._client_secret
         }
         r = requests.post(url=endpoint, data=data, headers=headers)
         try:
             r.raise_for_status()
-            # access JSOn content
             json_obj = r.json()
             self._authorisation_token = json_obj['access_token']
             print('Authorisation token:', self._authorisation_token)
@@ -48,7 +44,62 @@ class HyperPassAPI:
             print(f'Other error occurred: {err}')
             return False
 
+    def getAllTicketsToDate(self) -> dict:
+        print('getting all tickets between dates...')
+        print(self._zero_hour, ' => ', self._getNowUTC())
+
+        endpoint = self._api_base_url + '/tickets/purchased/'
+        headers = {
+            'Authorization': "Bearer " + self._authorisation_token
+        }
+        data = {
+            'event'    : self._event_id,
+            'from_date': self._zero_hour,
+            'to_date'  : self._getNowUTC()
+        }
+        endpoint += self._formURLParamsString(data)
+        r = requests.get(url=endpoint, headers=headers)
+        try:
+            r.raise_for_status()
+            json_dict = r.json()
+            return json_dict
+
+        except HTTPError as http_err:
+            print(f'HTTP error occurred: {http_err}')
+            return False
+        except Exception as err:
+            print(f'Other error occurred: {err}')
+            return False
+
+    def getAllTicketsForPastPeriod(self, period_in_hours: int) -> dict:
+        print('getting all tickets between dates...')
+        print(self._zero_hour, ' => ', self._getNowUTC())
+
+        endpoint = self._api_base_url + '/tickets/purchased/'
+        headers = {
+            'Authorization': "Bearer " + self._authorisation_token
+        }
+        data = {
+            'event'    : self._event_id,
+            'from_date': self._getThenUTC(period_in_hours),
+            'to_date'  : self._getNowUTC()
+        }
+        endpoint += self._formURLParamsString(data)
+        r = requests.get(url=endpoint, headers=headers)
+        try:
+            r.raise_for_status()
+            json_dict = r.json()
+            return json_dict
+
+        except HTTPError as http_err:
+            print(f'HTTP error occurred: {http_err}')
+            return False
+        except Exception as err:
+            print(f'Other error occurred: {err}')
+            return False
+
     def getTicketTypes(self):
+        print('getting ticket types')
         endpoint = self._api_base_url + '/tickets/types/'
         headers = {
             'Authorization': "Bearer " + self._authorisation_token
@@ -70,48 +121,10 @@ class HyperPassAPI:
             print(f'Other error occurred: {err}')
             return False
 
-    def getTimeSlotsToday(self):
-        endpoint = self._api_base_url + '/tickets/slots/'
-        today = self._getTodayUTC()
-        headers = {
-            'Authorization': "Bearer " + self._authorisation_token
-        }
-        data = {
-            'event': self._event_id,
-            'from_date': today['iso_start_date'],
-            'to_date': today['iso_end_date'],
-            'allow_overbooking': 'true'
-        }
-        endpoint += self._formURLParamsString(data)
-        r = requests.get(url=endpoint, headers=headers)
-        try:
-            r.raise_for_status()
-            json_dict = r.json()
-            return json_dict
 
-        except HTTPError as http_err:
-            print(f'HTTP error occurred: {http_err}')
-            return False
-        except Exception as err:
-            print(f'Other error occurred: {err}')
-            return False
 
-    def getTimeSlotsPerDay(self):
-        pass
 
-    def createOrder(self):
-        pass
-
-    def updateOrderStatus(self):
-        pass
-
-    def retrieveOrderById(self):
-        pass
-
-    def retrieveOrderByRef(self):
-        pass
-
-    def _getTodayUTC(self, utc_offset:int = 4) -> dict:
+    def _getTodayUTC(self, utc_offset: int = 4) -> dict:
         today = date.today()
         local_start = datetime(today.year, today.month, today.day, 00, 00, 00)
         local_end = datetime(today.year, today.month, today.day, 23, 59, 59)
@@ -123,11 +136,25 @@ class HyperPassAPI:
 
         print(iso_start, iso_end)
         return {
-            'start_date': utc_start,
-            'end_date': utc_end,
+            'start_date'    : utc_start,
+            'end_date'      : utc_end,
             'iso_start_date': iso_start,
-            'iso_end_date': iso_end
+            'iso_end_date'  : iso_end
         }
+
+    def _getNowUTC(self, utc_offset: int = 4) -> dict:
+        now = datetime.now()
+        delta = timedelta(hours=utc_offset)
+        utc_now = now - delta
+        iso_now = utc_now.isoformat()
+        return str(iso_now)
+
+    def _getThenUTC(self, then_offset: int, utc_offset: int = 4) -> dict:
+        now = datetime.now()
+        delta = timedelta(hours=(utc_offset + then_offset))
+        utc_then = now - delta
+        iso_then = utc_then.isoformat()
+        return str(iso_then)
 
     def _formURLParamsString(self, params: dict) -> str:
         param_key_val_list = []
@@ -135,5 +162,3 @@ class HyperPassAPI:
             param_key_val_list.append('='.join([key, params[key]]))
         rtn_string = '?' + "&".join(param_key_val_list)
         return rtn_string
-
-
