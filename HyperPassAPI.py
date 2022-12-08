@@ -62,7 +62,7 @@ class HyperPassAPI:
         try:
             r.raise_for_status()
             json_dict = r.json()
-            return json_dict
+            return json_dict['tickets']
 
         except HTTPError as http_err:
             print(f'HTTP error occurred: {http_err}')
@@ -120,9 +120,6 @@ class HyperPassAPI:
         except Exception as err:
             print(f'Other error occurred: {err}')
             return False
-
-
-
 
     def _getTodayUTC(self, utc_offset: int = 4) -> dict:
         today = date.today()
